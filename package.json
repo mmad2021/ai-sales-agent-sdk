@@ -1,6 +1,6 @@
 {
   "name": "ai-sales-agent-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic AI sales agent SDK for conversational commerce",
   "type": "module",
   "main": "./src/index.js",
