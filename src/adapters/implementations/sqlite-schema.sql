@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS payment_verifications (
   order_id INTEGER NOT NULL,
   image_path TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
+  llm_confidence REAL,
+  decision TEXT,
+  reason TEXT,
+  metadata TEXT,
+  reviewed_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

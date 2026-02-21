@@ -108,6 +108,16 @@ Instructions:
         }
         return `Order ${order.orderNumber} is currently ${order.status}.`;
       }
+      case 'submit_payment_receipt': {
+        const data = actionResult.data || {};
+        if (data.decision === 'approved') {
+          return `Thanks. I verified your receipt and marked payment as completed for order ${data.orderId}.`;
+        }
+        if (data.decision === 'rejected') {
+          return `I could not validate that receipt for order ${data.orderId}. Please upload a clearer payment proof or contact support.`;
+        }
+        return `I received your receipt for order ${data.orderId}. It is pending manual review.`;
+      }
       default:
         return 'I can help with products, cart updates, checkout, and order tracking. What do you want to do next?';
     }

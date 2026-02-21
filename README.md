@@ -425,6 +425,13 @@ const agent = new AISalesAgent({
   
   // Intent detection options
   intentThreshold: 0.7,           // Minimum confidence for intent detection
+
+  // Payment receipt verification (vision LLM)
+  payments: {
+    autoApproveThreshold: 0.85,   // confidence >= this -> auto approve
+    autoRejectThreshold: 0.35,    // confidence <= this -> auto reject
+    visionPrompt: 'Assess whether this image is a valid payment receipt for the provided order details.'
+  },
   
   // Response options
   responseFormat: 'conversational', // 'conversational' | 'structured'
@@ -435,6 +442,37 @@ const agent = new AISalesAgent({
   timeout: 30000                  // Request timeout in ms
 });
 ```
+
+### 5. Image Upload Receipt Verification (Vision LLM)
+
+```javascript
+const response = await agent.chat(
+  'session-user-001',
+  'I uploaded my payment receipt',
+  {
+    orderId: 1,
+    receiptUrl: '/absolute/path/to/receipt.jpg'
+    // you can also pass imageUrl instead of receiptUrl
+  }
+);
+
+console.log(response.data);
+// {
+//   orderId: 1,
+//   receiptUrl: '/absolute/path/to/receipt.jpg',
+//   decision: 'approved' | 'rejected' | 'pending',
+//   confidence: 0.91,
+//   paymentStatus: 'paid' | 'verification_rejected' | 'pending_verification',
+//   verified: true | false,
+//   reason: '...'
+// }
+```
+
+Intent `submit_payment_receipt` is now supported and the SDK runs:
+1. Image analysis with `llm.analyzeImage(...)`
+2. Confidence scoring (0..1)
+3. Automatic decision via thresholds (`approved` / `rejected` / `pending`)
+4. Payment status update in `orders` + audit record in `payment_verifications`
 
 ---
 

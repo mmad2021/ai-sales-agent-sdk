@@ -28,9 +28,14 @@ export class PaymentAdapter {
    * Process payment receipt/proof (for manual verification)
    * @param {string|number} orderId
    * @param {string} receiptUrl - URL/path to receipt image
-   * @returns {Promise<{verified: boolean, status: string}>}
+   * @param {Object} verification
+   * @param {'approved'|'rejected'|'pending'} verification.decision
+   * @param {number} verification.confidence - 0..1 score
+   * @param {string} verification.reason
+   * @param {string} verification.status
+   * @returns {Promise<{verified: boolean, status: string, decision?: string, confidence?: number}>}
    */
-  async processReceipt(orderId, receiptUrl) {
+  async processReceipt(orderId, receiptUrl, verification = {}) {
     throw new Error('Must implement processReceipt()');
   }
 }

@@ -6,6 +6,7 @@ export const DEFAULT_INTENTS = [
   'view_cart',
   'remove_from_cart',
   'checkout',
+  'submit_payment_receipt',
   'track_order',
   'complaint',
   'unclear'
@@ -40,6 +41,8 @@ Message: "${message}"
 Allowed intents:
 ${this.enabledIntents.map((intent) => `- ${intent}`).join('\n')}
 
+Use intent "submit_payment_receipt" when the user says they uploaded/shared a receipt, screenshot, or payment proof.
+
 Extract entities when present:
 - product_type
 - product_id
@@ -49,6 +52,8 @@ Extract entities when present:
 - quantity
 - price_range
 - order_id
+- payment_id
+- receipt_url
 
 Respond with JSON only:
 {
@@ -62,7 +67,9 @@ Respond with JSON only:
     "size": null,
     "quantity": null,
     "price_range": null,
-    "order_id": null
+    "order_id": null,
+    "payment_id": null,
+    "receipt_url": null
   }
 }`;
 

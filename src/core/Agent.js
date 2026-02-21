@@ -27,6 +27,11 @@ const DEFAULT_CONFIG = {
     freeShippingThreshold: 50,
     defaultShippingCost: 5,
     currency: 'USD'
+  },
+  payments: {
+    autoApproveThreshold: 0.85,
+    autoRejectThreshold: 0.35,
+    visionPrompt: 'Assess whether this image is a valid payment receipt for the provided order details. Return JSON only.'
   }
 };
 
@@ -37,7 +42,8 @@ function mergeConfig(config = {}) {
     business: { ...DEFAULT_CONFIG.business, ...(config.business || {}) },
     conversation: { ...DEFAULT_CONFIG.conversation, ...(config.conversation || {}) },
     llm: { ...DEFAULT_CONFIG.llm, ...(config.llm || {}) },
-    orders: { ...DEFAULT_CONFIG.orders, ...(config.orders || {}) }
+    orders: { ...DEFAULT_CONFIG.orders, ...(config.orders || {}) },
+    payments: { ...DEFAULT_CONFIG.payments, ...(config.payments || {}) }
   };
 }
 
@@ -65,6 +71,7 @@ export class AISalesAgent {
 
     this.actionExecutor = new ActionExecutor({
       adapters: this.adapters,
+      llm: this.llm,
       config: this.config
     });
 

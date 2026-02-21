@@ -205,6 +205,8 @@ export class SQLiteOrderAdapter extends OrderAdapter {
       },
       status: row.status,
       paymentStatus: row.payment_status || 'pending',
+      paymentId: row.payment_id || null,
+      paymentLink: row.payment_link || null,
       createdAt: row.created_at ? new Date(row.created_at) : null,
       updatedAt: row.updated_at ? new Date(row.updated_at) : null
     };
