@@ -3,7 +3,7 @@
 > Framework-agnostic conversational commerce engine for building AI-powered sales chatbots
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 **AI Sales Agent SDK** is a production-ready JavaScript SDK that enables developers to integrate intelligent conversational commerce capabilities into any e-commerce platform, POS system, or custom application.
 
@@ -11,7 +11,7 @@
 
 - 🛍️ **Conversational Commerce Engine** - Browse, cart, checkout via natural language
 - 🔌 **Adapter Pattern** - Plug into any backend (WooCommerce, Shopify, Odoo, custom APIs)
-- 🤖 **Multi-LLM Support** - Works with Ollama, OpenAI, Claude, or custom models
+- 🤖 **LLM Provider Interface** - Ollama provider included; OpenAI/Claude adapters are planned; custom models supported
 - 🎯 **Intent Detection** - Automatically understands user intent and extracts entities
 - 💾 **Flexible Session Storage** - In-memory (dev) or Redis (production)
 - 🛡️ **Production-Ready** - Rate limiting, error handling, structured logging built-in
@@ -33,10 +33,8 @@ npm install
 ### Option 2: Add to your project
 
 ```bash
-# Coming soon: npm install ai-sales-agent-sdk
+npm install ai-sales-agent-sdk
 ```
-
-For now, you can use it as a git submodule or copy the `src/` directory into your project.
 
 ---
 
@@ -70,18 +68,18 @@ import {
 
 // 1. Setup database (SQLite example)
 const dbClient = new SQLiteClient({ dbPath: ':memory:' });
-await dbClient.init();
+await dbClient.getDB();
 
 // 2. Configure adapters
 const adapters = {
-  products: new SQLiteProductAdapter(dbClient),
-  orders: new SQLiteOrderAdapter(dbClient),
-  customers: new SQLiteCustomerAdapter(dbClient),
-  payments: new SQLitePaymentAdapter(dbClient)
+  products: new SQLiteProductAdapter({ client: dbClient }),
+  orders: new SQLiteOrderAdapter({ client: dbClient }),
+  customers: new SQLiteCustomerAdapter({ client: dbClient }),
+  payments: new SQLitePaymentAdapter({ client: dbClient })
 };
 
 // 3. Choose LLM provider
-const llmProvider = new OllamaProvider({
+const llm = new OllamaProvider({
   baseUrl: 'http://localhost:11434',
   model: 'qwen2.5-coder:14b'
 });
@@ -91,16 +89,13 @@ const sessionStore = new MemorySessionStore();
 
 // 5. Create agent
 const agent = new AISalesAgent({
-  llmProvider,
+  llm,
   sessionStore,
   adapters
 });
 
 // 6. Process messages
-const response = await agent.processMessage({
-  userId: 'user123',
-  message: 'Show me black t-shirts under $30'
-});
+const response = await agent.chat('user123', 'Show me black t-shirts under $30');
 
 console.log(response.text);  // Natural language response
 console.log(response.data);  // Structured data (products, cart, etc.)
@@ -127,27 +122,29 @@ Implement these interfaces to connect your backend:
 ```javascript
 // Product operations
 class ProductAdapter {
-  async findProducts(filters) { /* ... */ }
-  async getProductById(id) { /* ... */ }
-  async checkStock(productId, quantity) { /* ... */ }
+  async searchProducts(query, filters) { /* ... */ }
+  async getProduct(productId) { /* ... */ }
+  async checkAvailability(productId, quantity) { /* ... */ }
 }
 
 // Order management
 class OrderAdapter {
-  async createOrder(userId, items) { /* ... */ }
+  async createOrder(orderData) { /* ... */ }
   async getOrder(orderId) { /* ... */ }
-  async getUserOrders(userId) { /* ... */ }
+  async getCustomerOrders(customerId) { /* ... */ }
 }
 
 // Customer data
 class CustomerAdapter {
-  async getCustomer(userId) { /* ... */ }
-  async createCustomer(data) { /* ... */ }
+  async getCustomer(customerId) { /* ... */ }
+  async getOrCreateCustomer(identifier) { /* ... */ }
 }
 
 // Payment processing
 class PaymentAdapter {
-  async verifyPayment(paymentData) { /* ... */ }
+  async createPayment(paymentData) { /* ... */ }
+  async verifyPayment(paymentId) { /* ... */ }
+  async processReceipt(orderId, receiptUrl, verification) { /* ... */ }
 }
 ```
 
@@ -158,7 +155,7 @@ class PaymentAdapter {
 
 ### LLM Providers
 
-Built-in support for:
+Current support:
 
 ```javascript
 // Local models (Ollama)
@@ -167,13 +164,13 @@ const llm = new OllamaProvider({
   model: 'qwen2.5-coder:14b' 
 });
 
-// OpenAI
+// OpenAI (planned - currently throws not implemented)
 const llm = new OpenAIProvider({ 
   apiKey: 'sk-...',
   model: 'gpt-4' 
 });
 
-// Claude
+// Claude (planned - currently throws not implemented)
 const llm = new ClaudeProvider({ 
   apiKey: 'sk-ant-...',
   model: 'claude-3-sonnet' 
@@ -205,11 +202,11 @@ class WooCommerceProductAdapter extends ProductAdapter {
     });
   }
 
-  async findProducts(filters) {
+  async searchProducts(query, filters = {}) {
     const params = {};
     if (filters.category) params.category = filters.category;
     if (filters.maxPrice) params.max_price = filters.maxPrice;
-    if (filters.search) params.search = filters.search;
+    if (query) params.search = query;
 
     const response = await this.api.get('/products', { params });
     return response.data.map(p => ({
@@ -223,7 +220,7 @@ class WooCommerceProductAdapter extends ProductAdapter {
     }));
   }
 
-  async getProductById(id) {
+  async getProduct(id) {
     const response = await this.api.get(`/products/${id}`);
     const p = response.data;
     return {
@@ -234,9 +231,10 @@ class WooCommerceProductAdapter extends ProductAdapter {
     };
   }
 
-  async checkStock(productId, quantity) {
-    const product = await this.getProductById(productId);
-    return product.stock >= quantity;
+  async checkAvailability(productId, quantity) {
+    const product = await this.getProduct(productId);
+    const stock = product.stock || 0;
+    return { available: stock >= quantity, stock };
   }
 }
 
@@ -247,7 +245,7 @@ const products = new WooCommerceProductAdapter({
   consumerSecret: 'cs_...'
 });
 
-const agent = new AISalesAgent({ adapters: { products }, /* ... */ });
+const agent = new AISalesAgent({ llm, adapters: { products }, /* ... */ });
 ```
 
 ### 2. Using with Redis Sessions (production)
@@ -256,11 +254,9 @@ const agent = new AISalesAgent({ adapters: { products }, /* ... */ });
 import { RedisSessionStore } from './src/session/index.js';
 
 const sessionStore = new RedisSessionStore({
-  host: 'localhost',
-  port: 6379,
-  db: 0,
-  password: 'your-redis-password', // optional
-  ttl: 3600 // session TTL in seconds
+  url: 'redis://localhost:6379',
+  prefix: 'sales-agent:session:',
+  defaultTTL: 3600
 });
 
 const agent = new AISalesAgent({
@@ -285,7 +281,9 @@ const logger = new Logger({ level: 'info' });
 
 // Error recovery
 const errorHandler = new ErrorHandler({ 
-  fallbackMessage: 'Sorry, something went wrong. Please try again.' 
+  onError: async (error, ctx) => {
+    console.error('Agent error:', error.message, { sessionId: ctx.sessionId });
+  }
 });
 
 // Apply to agent
@@ -298,26 +296,21 @@ const agent = new AISalesAgent({
 ### 4. Handling Responses
 
 ```javascript
-const response = await agent.processMessage({
-  userId: 'user123',
-  message: 'Add black t-shirt to cart'
-});
+const response = await agent.chat('user123', 'Add black t-shirt to cart');
 
 console.log(response);
 // {
 //   text: "I've added the black t-shirt to your cart.",
-//   data: {
-//     intent: 'add_to_cart',
-//     confidence: 0.93,
-//     entities: { product_type: 't-shirt', color: 'black' },
-//     cart: [{ productId: 1, name: 'Black T-Shirt', quantity: 1, price: 25.00 }],
-//     action: 'item_added'
-//   },
-//   metadata: {
-//     userId: 'user123',
-//     timestamp: '2026-02-21T10:30:00Z',
-//     processingTime: 234
+//   intent: 'add_to_cart',
+//   confidence: 0.93,
+//   entities: { product_type: 't-shirt', color: 'black' },
+//   actions: {
+//     addedToCart: true,
+//     removedFromCart: false,
+//     proceedToCheckout: false
 //   }
+//   data: { ... },
+//   session: { cart: { items: [...] }, customer: null, context: {} }
 // }
 ```
 
@@ -408,7 +401,7 @@ ai-sales-agent-sdk/
 ```javascript
 const agent = new AISalesAgent({
   // Required
-  llmProvider: new OllamaProvider({ /* ... */ }),
+  llm: new OllamaProvider({ /* ... */ }),
   sessionStore: new MemorySessionStore(),
   adapters: {
     products: new SQLiteProductAdapter(/* ... */),
@@ -420,26 +413,31 @@ const agent = new AISalesAgent({
   // Optional
   middleware: [rateLimiter, logger, errorHandler],
   
-  // Context options
-  contextWindow: 10,              // Number of messages to keep in context
-  
-  // Intent detection options
-  intentThreshold: 0.7,           // Minimum confidence for intent detection
+  // Configuration options
+  config: {
+    conversation: {
+      maxHistoryLength: 20,
+      sessionTTL: 3600,
+      greetingMessage: 'Welcome!'
+    },
+    llm: {
+      temperature: 0.7,
+      maxTokens: 500,
+      systemPrompt: 'You are a helpful sales assistant.'
+    },
+    business: {
+      name: 'Store',
+      description: 'Online store',
+      currency: 'USD'
+    },
 
-  // Payment receipt verification (vision LLM)
-  payments: {
-    autoApproveThreshold: 0.85,   // confidence >= this -> auto approve
-    autoRejectThreshold: 0.35,    // confidence <= this -> auto reject
-    visionPrompt: 'Assess whether this image is a valid payment receipt for the provided order details.'
-  },
-  
-  // Response options
-  responseFormat: 'conversational', // 'conversational' | 'structured'
-  language: 'en',                 // Response language
-  
-  // Error handling
-  maxRetries: 3,                  // Max retry attempts on LLM failures
-  timeout: 30000                  // Request timeout in ms
+    // Payment receipt verification (vision LLM)
+    payments: {
+      autoApproveThreshold: 0.85,
+      autoRejectThreshold: 0.35,
+      visionPrompt: 'Assess whether this image is a valid payment receipt for the provided order details.'
+    }
+  }
 });
 ```
 
@@ -479,14 +477,13 @@ Intent `submit_payment_receipt` is now supported and the SDK runs:
 ## 🧪 Testing
 
 ```bash
-# Run all tests (coming soon)
+# Current baseline checks
+npm run check
 npm test
+npm run example:basic
 
-# Run specific test suite
-npm test -- --grep "IntentDetector"
-
-# Run with coverage
-npm run test:coverage
+# Optional: watch mode for local test development
+npm run test:watch
 ```
 
 ---
@@ -498,12 +495,6 @@ npm run test:coverage
 ```bash
 # Basic usage example
 npm run example:basic
-
-# WooCommerce example (coming soon)
-npm run example:woocommerce
-
-# Telegram bot example (coming soon)
-npm run example:telegram
 ```
 
 ### Building Custom Adapters
@@ -519,7 +510,7 @@ See `src/adapters/implementations/` for reference implementations.
 
 ## 📋 Requirements
 
-- **Node.js:** >= 16.0.0
+- **Node.js:** >= 18.0.0
 - **Dependencies:** 
   - `redis` (^4.6.12) - only if using RedisSessionStore
   - `sql.js` (^1.14.0) - only if using SQLite adapters
@@ -531,7 +522,7 @@ See `src/adapters/implementations/` for reference implementations.
 ### Phase 1: Core SDK ✅ (Complete)
 - [x] Core conversational engine
 - [x] Adapter pattern
-- [x] Multi-LLM support
+- [x] LLM provider interface + Ollama implementation
 - [x] Session management
 - [x] Middleware stack
 - [x] SQLite reference implementations

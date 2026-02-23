@@ -49,11 +49,13 @@ function mergeConfig(config = {}) {
 
 export class AISalesAgent {
   constructor(options = {}) {
-    if (!options.llm) {
+    const llm = options.llm || options.llmProvider;
+
+    if (!llm) {
       throw new Error('AISalesAgent requires an llm provider.');
     }
 
-    this.llm = options.llm;
+    this.llm = llm;
     this.adapters = options.adapters || {};
     this.sessionStore = options.sessionStore || new MemorySessionStore();
     this.config = mergeConfig(options.config);
@@ -153,6 +155,22 @@ export class AISalesAgent {
       await this._runMiddleware('error', ctx);
       return failure;
     }
+  }
+
+  async processMessage(input = {}) {
+    const sessionId = input.sessionId || input.userId;
+    const message = input.message;
+    const metadata = input.metadata || {};
+
+    if (!sessionId) {
+      throw new Error('processMessage requires input.sessionId or input.userId.');
+    }
+
+    if (!message || typeof message !== 'string') {
+      throw new Error('processMessage requires a non-empty string input.message.');
+    }
+
+    return this.chat(sessionId, message, metadata);
   }
 
   async detectIntent(message, conversationHistory = []) {
